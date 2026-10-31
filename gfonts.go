@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // GetFont Get the font from the Google Fonts API
@@ -42,10 +43,14 @@ func verifyURL(url string) bool {
 	return strings.HasPrefix(url, "https://fonts.googleapis.com/css?family=")
 }
 
+// httpClient is used to call the Google Fonts API; the timeout prevents a slow or
+// unresponsive server from blocking the caller indefinitely.
+var httpClient = &http.Client{Timeout: 30 * time.Second}
+
 // fetch Get the font from the Google Fonts API
 func fetch(url string) ([]byte, error) {
 	// Get the font from the Google Fonts API
-	resp, err := http.Get(url) // #nosec:G107
+	resp, err := httpClient.Get(url) // #nosec:G107
 	if err != nil {
 		return nil, err
 	}
