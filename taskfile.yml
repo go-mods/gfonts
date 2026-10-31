@@ -1,0 +1,12 @@
+# Taskfile.yml - Main configuration file for Task
+# Task is an alternative task runner to Make, written in Go
+# Complete documentation: https://taskfile.dev
+version: '3'
+
+# Import subtasks from other files
+# This allows better organization and modularity of the code
+includes:
+  # Tasks related to Go (compilation, tests, linting, etc.)
+  go: ./.task/go.taskfile.yml
+  # Go development tools, installed at pinned versions
+  go-tools: ./.task/go-tools.taskfile.yml
