@@ -1,40 +1,39 @@
+// Package gfonts retrieves the CSS of a font family from the Google Fonts API and
+// returns it encoded as a base64 string.
 package gfonts
 
 import (
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 )
 
-// GetFont Get the font from the Google Fonts API
-// the encode it as a base64 string
-// The result is a string that can be used as a CSS font-family
+// GetFont gets the CSS stylesheet at the given Google Fonts URL and returns it encoded
+// as a base64 string, for example to embed it in a data:text/css;base64 URI.
+//
+// The result holds the @font-face rules, not the font files: those rules still
+// reference the font files hosted by Google.
+//
+// The URL must start with https://fonts.googleapis.com/css?family=. An error is
+// returned if the URL is invalid, if the request fails or if the response status is
+// not 200 OK, which is the case for an unknown font family.
 func GetFont(url string) (string, error) {
 	// Verify the URL
 	if !verifyURL(url) {
 		return "", errors.New("invalid URL, must start with https://fonts.googleapis.com/css?family=")
 	}
 
-	// Get the font from the Google Fonts API
-	font, err := fetch(url)
-	if err != nil {
-		return "", err
-	}
-	if font == nil {
-		return "", errors.New("font not found")
-	}
-
-	// Encode the font as a base64 string
-	font64, err := encodeFont(font)
+	// Get the stylesheet from the Google Fonts API
+	css, err := fetch(url)
 	if err != nil {
 		return "", err
 	}
 
-	// Return the font as a string
-	return font64, nil
+	return base64.StdEncoding.EncodeToString(css), nil
 }
 
 // verifyURL Verify the URL is a valid Google Fonts URL
@@ -47,9 +46,8 @@ func verifyURL(url string) bool {
 // unresponsive server from blocking the caller indefinitely.
 var httpClient = &http.Client{Timeout: 30 * time.Second}
 
-// fetch Get the font from the Google Fonts API
+// fetch gets the body of a successful response from the Google Fonts API
 func fetch(url string) ([]byte, error) {
-	// Get the font from the Google Fonts API
 	resp, err := httpClient.Get(url) // #nosec:G107
 	if err != nil {
 		return nil, err
@@ -58,21 +56,10 @@ func fetch(url string) ([]byte, error) {
 		_ = Body.Close()
 	}(resp.Body)
 
-	// Read the response
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
+	// An error page must not be mistaken for a stylesheet
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected HTTP status: %s", resp.Status)
 	}
 
-	// Return the font
-	return body, nil
-}
-
-// encodeFont Encode the font as a base64 string
-func encodeFont(font []byte) (string, error) {
-	// Encode the font as a base64 string
-	font64 := base64.StdEncoding.EncodeToString(font)
-
-	// Return the font as a string
-	return font64, nil
+	return io.ReadAll(resp.Body)
 }
