@@ -174,6 +174,10 @@ func TestGetEmbeddedFontRejectsInvalidFontFiles(t *testing.T) {
 			},
 		},
 		{
+			name:   "not https",
+			bodies: map[string]string{stylesheetURL: "@font-face { src: url(http://fonts.gstatic.com/roboto.ttf); }"},
+		},
+		{
 			name:   "unavailable file",
 			bodies: map[string]string{stylesheetURL: "@font-face { src: url(" + fontFile + "); }"},
 		},
@@ -231,11 +235,28 @@ func TestGettersRejectErrorStatus(t *testing.T) {
 }
 
 func TestGettersRejectInvalidURL(t *testing.T) {
+	urls := map[string]string{
+		"other host":    "https://example.com/css?family=Roboto",
+		"lookalike":     "https://fonts.googleapis.com.example.com/css?family=Roboto",
+		"not https":     "http://fonts.googleapis.com/css?family=Roboto",
+		"other path":    "https://fonts.googleapis.com/icon?family=Roboto",
+		"no family":     "https://fonts.googleapis.com/css",
+		"empty family":  "https://fonts.googleapis.com/css?family=",
+		"not parseable": "https://fonts.googleapis.com/css?family=Roboto\x7f",
+	}
+
 	for _, getter := range getters {
-		t.Run(getter.name, func(t *testing.T) {
-			if _, err := getter.get("https://example.com/css?family=Roboto"); err == nil {
-				t.Fatal("expected an error, got nil")
-			}
-		})
+		for name, url := range urls {
+			t.Run(getter.name+"/"+name, func(t *testing.T) {
+				requests := stubResponses(t, nil)
+
+				if _, err := getter.get(url); err == nil {
+					t.Fatal("expected an error, got nil")
+				}
+				if len(requests) != 0 {
+					t.Errorf("unexpected requests: %v", requests)
+				}
+			})
+		}
 	}
 }

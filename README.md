@@ -33,8 +33,22 @@ Two functions are available, both returning a stylesheet encoded as a base64 str
 
 `GetEmbeddedFont` downloads every referenced font file, so its result is much larger.
 
-An error is returned if the URL does not start with `https://fonts.googleapis.com/css?family=`,
+`GetFontWith` and `GetEmbeddedFontWith` are their variants taking options instead of a URL:
+
+```go
+css, err := gfonts.GetFontWith(
+    gfonts.WithFamily("Open Sans"),
+    gfonts.WithWeight(400, 700),
+    gfonts.WithItalic(400),
+    gfonts.WithSubset("latin"),
+    gfonts.WithDisplay("swap"),
+)
+```
+
+`WithFamily` is required, and a call covers a single family.
+
+An error is returned if the URL is not `https://fonts.googleapis.com/css` with a `family` parameter,
 if a request fails or if a response status is not `200 OK`, for example for an unknown family.
-`GetEmbeddedFont` also fails if the stylesheet references no font file, or a file outside
-`https://fonts.gstatic.com/`.
+`GetEmbeddedFont` and `GetEmbeddedFontWith` also fail if the stylesheet references no font file,
+or a file outside `https://fonts.gstatic.com/`.
 

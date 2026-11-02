@@ -9,14 +9,21 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
 )
 
-// fontFileHost is the only location font files are downloaded from: the URLs come from
-// the content of a response, they must not make the caller reach another server.
-const fontFileHost = "https://fonts.gstatic.com/"
+const (
+	// stylesheetHost and stylesheetPath locate the stylesheets of the Google Fonts API.
+	stylesheetHost = "fonts.googleapis.com"
+	stylesheetPath = "/css"
+
+	// fontFileHost is the only host font files are downloaded from: the URLs come from
+	// the content of a response, they must not make the caller reach another server.
+	fontFileHost = "fonts.gstatic.com"
+)
 
 // fontFileURL matches the references to a file in a stylesheet.
 var fontFileURL = regexp.MustCompile(`url\(([^)]*)\)`)
@@ -27,7 +34,7 @@ var fontFileURL = regexp.MustCompile(`url\(([^)]*)\)`)
 // The result holds the @font-face rules, not the font files: those rules still
 // reference the font files hosted by Google. Use GetEmbeddedFont to embed them.
 //
-// The URL must start with https://fonts.googleapis.com/css?family=. An error is
+// The URL must be https://fonts.googleapis.com/css with a family parameter. An error is
 // returned if the URL is invalid, if the request fails or if the response status is
 // not 200 OK, which is the case for an unknown font family.
 func GetFont(url string) (string, error) {
@@ -47,7 +54,7 @@ func GetFont(url string) (string, error) {
 // is much larger than the result of GetFont and every font file is downloaded, one at
 // a time, so the call can take several times the timeout of a single request.
 //
-// The URL must start with https://fonts.googleapis.com/css?family=. An error is
+// The URL must be https://fonts.googleapis.com/css with a family parameter. An error is
 // returned if the URL is invalid, if a request fails, if a response status is not
 // 200 OK, or if the stylesheet references no font file or an unexpected one.
 func GetEmbeddedFont(url string) (string, error) {
@@ -67,7 +74,7 @@ func GetEmbeddedFont(url string) (string, error) {
 // getStylesheet verifies the URL and gets the stylesheet from the Google Fonts API
 func getStylesheet(url string) ([]byte, error) {
 	if !verifyURL(url) {
-		return nil, errors.New("invalid URL, must start with https://fonts.googleapis.com/css?family=")
+		return nil, errors.New("invalid URL, must be https://" + stylesheetHost + stylesheetPath + " with a family parameter")
 	}
 
 	return fetch(url)
@@ -97,12 +104,12 @@ func embedFontFiles(css string) (string, error) {
 }
 
 // fontFileDataURI downloads a font file and returns it as a data URI
-func fontFileDataURI(url string) (string, error) {
-	if !strings.HasPrefix(url, fontFileHost) {
-		return "", errors.New("unexpected location, must start with " + fontFileHost)
+func fontFileDataURI(rawURL string) (string, error) {
+	if u, err := url.Parse(rawURL); err != nil || u.Scheme != "https" || u.Host != fontFileHost {
+		return "", errors.New("unexpected location, must be on https://" + fontFileHost)
 	}
 
-	font, err := fetch(url)
+	font, err := fetch(rawURL)
 	if err != nil {
 		return "", err
 	}
@@ -115,10 +122,17 @@ func fontFileDataURI(url string) (string, error) {
 	return "data:" + mediaType + ";base64," + base64.StdEncoding.EncodeToString(font), nil
 }
 
-// verifyURL Verify the URL is a valid Google Fonts URL
-// the URL must start with https://fonts.googleapis.com/css?family=
-func verifyURL(url string) bool {
-	return strings.HasPrefix(url, "https://fonts.googleapis.com/css?family=")
+// verifyURL reports whether the URL is a Google Fonts stylesheet URL naming a family
+func verifyURL(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+
+	return u.Scheme == "https" &&
+		u.Host == stylesheetHost &&
+		u.Path == stylesheetPath &&
+		u.Query().Get("family") != ""
 }
 
 // httpClient is used to call the Google Fonts API; the timeout prevents a slow or
